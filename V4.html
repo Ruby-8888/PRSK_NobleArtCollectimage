@@ -37,6 +37,9 @@
     .dragging {
       opacity: 0.4;
     }
+    .dragging img {
+      opacity: 0.4;
+    }
     .insert-line {
       width: 4px;
       background-color: red;
@@ -178,7 +181,6 @@
       insertLine.className = 'insert-line';
 
       list.querySelectorAll('.thumb').forEach(item => {
-        // 桌面拖曳事件
         item.addEventListener('dragstart', (e) => {
           dragged = item;
           item.classList.add('dragging');
@@ -229,7 +231,7 @@
         });
       });
 
-      enableTouchDrag(); // 👉 手機觸控支援
+      enableTouchDrag(); // 手機拖曳支援
     }
 
     function enableTouchDrag() {
