@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>圖片排版工具</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f8f8f8; }
+    #image-list {
+      display: grid;
+      grid-template-columns: repeat(4, 512px);
+      grid-template-rows: repeat(3, 293px);
+      gap: 35px 0;
+      width: 2048px;
+      height: calc(3 * 293px + 2 * 35px);
+      margin-bottom: 20px;
+      background: white;
+    }
+    .thumb {
+      width: 512px;
+      height: 293px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ccc;
+      background: #fff;
+    }
+    .thumb img {
+      position: absolute;
+      top: 50%; left: 50%;
+      max-width: 100%;
+      max-height: 100%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .thumb[draggable] {
+      cursor: grab;
+    }
+    .dragging {
+      opacity: 0.4;
+    }
+    .insert-line {
+      width: 4px;
+      background-color: red;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      z-index: 10;
+    }
+    .delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(255, 0, 0, 0.8);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 16px;
+      cursor: pointer;
+      z-index: 20;
+    }
+    #canvas-preview {
+      border: 1px solid #999;
+      margin-top: 20px;
+      background: white;
+      max-width: 100%;
+    }
+    button, select {
+      margin: 5px;
+      padding: 8px 16px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h2>圖片排版工具</h2>
+  <h3>1.選擇圖片後上傳</h3>
+  <h3>2.拖曳圖片更改位置（紅線顯示插入點/半透明圖片顯示）</h3>
+  <h3>3.點右上角叉叉可刪除圖片</h3>
+  <h3>4.產生合成圖</h3>
+  <h3>5.下載圖片</h3>
+
+  <input type="file" id="file-input" multiple accept="image/*">
+  <button onclick="generateImage()">產生合成圖</button>
+  <button onclick="downloadImage()">下載圖片</button>
+  <div id="image-list"></div>
+  <canvas id="canvas-preview" width="2048" height="1015"></canvas>
+
+  <script>
+    const input = document.getElementById('file-input');
+    const list = document.getElementById('image-list');
+    const canvas = document.getElementById('canvas-preview');
+    const ctx = canvas.getContext('2d');
+
+    input.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files).slice(0, 12);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = document.createElement('img');
+          img.onload = () => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'thumb';
+            wrapper.setAttribute('draggable', 'true');
+
+            // 刪除按鈕
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-btn';
+            delBtn.textContent = '×';
+            delBtn.onclick = (e) => {
+              e.stopPropagation();
+              wrapper.remove();
+            };
+
+            wrapper.appendChild(delBtn);
+            wrapper.appendChild(img);
+            list.appendChild(wrapper);
+            enableDragDrop();
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // 清除 input 的值，確保可重複選同一批檔案
+      e.target.value = '';
+    });
+
+    function enableDragDrop() {
+      let dragged = null;
+      let insertLine = document.createElement('div');
+      insertLine.className = 'insert-line';
+
+      list.querySelectorAll('.thumb').forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+          dragged = item;
+          item.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', '');
+        });
+
+        item.addEventListener('dragend', () => {
+          if (dragged) dragged.classList.remove('dragging');
+          if (insertLine.parentNode) insertLine.parentNode.removeChild(insertLine);
+        });
+
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          const target = item;
+          if (target === dragged) return;
+
+          const rect = target.getBoundingClientRect();
+          const offset = e.clientX - rect.left;
+          const middle = rect.width / 2;
+          const before = offset < middle;
+
+          if (insertLine.parentNode) insertLine.parentNode.removeChild(insertLine);
+          insertLine.style.left = before ? '0px' : 'unset';
+          insertLine.style.right = before ? 'unset' : '0px';
+          target.style.position = 'relative';
+          target.appendChild(insertLine);
+        });
+
+        item.addEventListener('dragleave', () => {
+          if (insertLine.parentNode) insertLine.parentNode.removeChild(insertLine);
+        });
+
+        item.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const target = item;
+          if (insertLine.parentNode) insertLine.parentNode.removeChild(insertLine);
+          if (target === dragged) return;
+
+          const rect = target.getBoundingClientRect();
+          const offset = e.clientX - rect.left;
+          const middle = rect.width / 2;
+          const before = offset < middle;
+
+          if (before) {
+            list.insertBefore(dragged, target);
+          } else {
+            list.insertBefore(dragged, target.nextSibling);
+          }
+        });
+      });
+    }
+
+    function generateImage() {
+      const baseWidth = 2048;
+      const baseHeight = 1015;
+
+      canvas.width = baseWidth;
+      canvas.height = baseHeight;
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, baseWidth, baseHeight);
+
+      const thumbs = list.querySelectorAll('.thumb img');
+
+      Promise.all(Array.from(thumbs).map(img => {
+        return new Promise(resolve => {
+          if (img.complete) resolve();
+          else img.onload = resolve;
+        });
+      })).then(() => {
+        thumbs.forEach((img, index) => {
+          const row = Math.floor(index / 4);
+          const col = index % 4;
+          const cellWidth = 512;
+          const cellHeight = 293;
+          const x = col * cellWidth;
+          const y = 33 + row * (cellHeight + 35);
+
+          const s = Math.min(cellWidth / img.naturalWidth, cellHeight / img.naturalHeight);
+          const w = img.naturalWidth * s;
+          const h = img.naturalHeight * s;
+          const dx = x + (cellWidth - w) / 2;
+          const dy = y + (cellHeight - h) / 2;
+
+          ctx.drawImage(img, dx, dy, w, h);
+        });
+      });
+    }
+
+    function downloadImage() {
+      const link = document.createElement('a');
+      link.download = 'merged-image.jpg';
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+    }
+  </script>
+</body>
+</html>
