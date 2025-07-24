@@ -231,7 +231,7 @@
         });
       });
 
-      enableTouchDrag(); // 手機拖曳支援
+      enableTouchDrag();
     }
 
     function enableTouchDrag() {
@@ -239,17 +239,34 @@
       let currentOverEl = null;
       let insertLine = document.createElement('div');
       insertLine.className = 'insert-line';
+      let previewImg = null;
 
       list.querySelectorAll('.thumb').forEach(item => {
         item.addEventListener('touchstart', (e) => {
           touchStartEl = item;
           item.classList.add('dragging');
+
+          const img = item.querySelector('img');
+          previewImg = img.cloneNode(true);
+          previewImg.style.position = 'fixed';
+          previewImg.style.pointerEvents = 'none';
+          previewImg.style.width = '128px';
+          previewImg.style.opacity = '0.6';
+          previewImg.style.zIndex = '1000';
+          document.body.appendChild(previewImg);
+
+          const touch = e.touches[0];
+          previewImg.style.left = touch.clientX - 64 + 'px';
+          previewImg.style.top = touch.clientY - 64 + 'px';
         });
 
         item.addEventListener('touchmove', (e) => {
-          if (!touchStartEl) return;
+          if (!touchStartEl || !previewImg) return;
 
           const touch = e.touches[0];
+          previewImg.style.left = touch.clientX - 64 + 'px';
+          previewImg.style.top = touch.clientY - 64 + 'px';
+
           const el = document.elementFromPoint(touch.clientX, touch.clientY);
           const thumb = el?.closest('.thumb');
 
@@ -270,6 +287,11 @@
         });
 
         item.addEventListener('touchend', (e) => {
+          if (previewImg) {
+            previewImg.remove();
+            previewImg = null;
+          }
+
           if (touchStartEl && currentOverEl && currentOverEl !== touchStartEl) {
             const rect = currentOverEl.getBoundingClientRect();
             const touch = e.changedTouches[0];
