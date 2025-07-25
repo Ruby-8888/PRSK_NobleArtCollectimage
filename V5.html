@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>圖片排版工具</title>
+  <style>
+    body {
+      font-family: sans-serif; /* 恢復到最初檔案的字體 */
+      padding: 20px;
+      background: #f8f8f8;
+      display: flex;
+      flex-direction: column;
+      /* 移除 align-items: center; 讓內容靠左對齊 */
+      /* 由於 flex-direction 是 column，align-items 控制水平對齊 */
+      align-items: flex-start; /* 確保所有 flex 子項靠左對齊 */
+      min-height: 100vh; /* 確保內容佔滿視窗高度 */
+    }
+
+    h2, h3 {
+      color: #333;
+      margin-bottom: 5px;
+      /* 確保標題靠左對齊 (已由 body 的 align-items 控制，此處可選) */
+      /* align-self: flex-start; */
+    }
+
+    /* 恢復按鈕和輸入框的樣式到最初檔案的樣子 */
+    button, select {
+      margin: 5px;
+      padding: 8px 16px;
+      font-size: 16px;
+    }
+
+    /* 移除 input[type="file"] 的自定義樣式，恢復預設 */
+    input[type="file"] {
+      margin: 5px; /* 保持與按鈕相同的 margin */
+      padding: 8px 16px; /* 保持與按鈕相同的 padding */
+      font-size: 16px; /* 保持與按鈕相同的 font-size */
+      /* 移除所有自定義背景、顏色、邊框、圓角、陰影、hover 效果 */
+      /* align-self: flex-start; (已由 body 的 align-items 控制，此處可選) */
+    }
+
+    input[type="file"]::-webkit-file-upload-button {
+      /* 恢復預設，或移除此規則讓瀏覽器自行處理 */
+      visibility: visible; /* 讓預設按鈕可見 */
+    }
+
+    input[type="file"]::before {
+      /* 移除自定義按鈕文字和樣式 */
+      content: '';
+      display: none;
+    }
+
+    #edit-status {
+      font-weight: bold;
+      color: #d00;
+      margin-top: 10px;
+      /* align-self: flex-start; (已由 body 的 align-items 控制，此處可選) */
+    }
+
+    /* 針對按鈕容器 div 設置靠左對齊 */
+    body > div {
+      align-self: flex-start; /* 讓按鈕容器靠左對齊 */
+      display: flex; /* 讓按鈕在容器內水平排列 */
+      flex-wrap: wrap; /* 允許按鈕換行 */
+    }
+
+    #image-list {
+      display: grid;
+      grid-template-columns: repeat(4, 512px); /* 固定 4 欄，每欄 512px 寬度 */
+      /* 移除 grid-template-rows 和 height，讓其根據內容自動擴展 */
+      gap: 35px 0; /* 行間距 35px，列間距 0 */
+      width: 2048px; /* 總寬度增加到 2048px */
+      height: auto; /* 讓高度自動擴展，以容納所有圖片 */
+      margin-bottom: 20px;
+      background: white;
+      /* 恢復到最初檔案的樣式，移除圓角和陰影 */
+      /* border-radius: 0; */ /* 根據最初檔案，沒有這個屬性 */
+      /* box-shadow: none; */ /* 根據最初檔案，沒有這個屬性 */
+      padding: 0; /* 恢復到最初檔案，沒有內邊距 */
+      box-sizing: content-box; /* 恢復到最初檔案的預設 */
+      overflow: hidden; /* 隱藏所有滾動條 (包括垂直和水平) */
+      /* align-self: flex-start; (已由 body 的 align-items 控制，此處可選) */
+    }
+
+    .thumb {
+      width: 512px; /* 佔滿網格單元格寬度 */
+      height: 293px; /* 固定高度 */
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #ccc; /* 恢復到最初檔案的邊框 */
+      background: #fff; /* 恢復到最初檔案的背景 */
+      /* 恢復到最初檔案的樣式，移除圓角 */
+      border-radius: 0; /* 移除圓角 */
+      display: flex; /* 使用 flex 佈局來居中圖片 */
+      justify-content: center;
+      align-items: center;
+      box-sizing: content-box; /* 恢復到最初檔案的預設 */
+    }
+
+    .thumb img {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      max-width: 100%;
+      max-height: 100%;
+      transform: translate(-50%, -50%);
+      object-fit: contain; /* 確保圖片完整顯示在框內 */
+      pointer-events: none;
+      border-radius: 0; /* 移除圖片圓角 */
+    }
+
+    .thumb[draggable] {
+      cursor: grab;
+    }
+
+    .dragging {
+      opacity: 0.4;
+      /* 恢復到最初檔案，移除 transform */
+      /* transform: none; */
+    }
+
+    .dragging img {
+      opacity: 0.4;
+    }
+
+    .insert-line {
+      width: 4px;
+      background-color: red; /* 恢復到最初檔案的紅色 */
+      height: 100%;
+      position: absolute;
+      top: 0;
+      z-index: 10;
+      /* 恢復到最初檔案，移除圓角 */
+      /* border-radius: 0; */
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(255, 0, 0, 0.8);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 16px;
+      cursor: pointer;
+      z-index: 20;
+      /* 恢復到最初檔案，移除 flex 佈局、陰影、transition */
+      /* display: block; */
+      /* box-shadow: none; */
+      /* transition: none; */
+    }
+
+    .delete-btn:hover {
+      /* 恢復到最初檔案，移除 hover 效果 */
+      /* background: rgba(255, 0, 0, 0.8); */
+    }
+
+    .selected {
+      border: 4px solid red; /* 恢復到最初檔案的紅色邊框 */
+      box-sizing: border-box;
+      /* 恢復到最初檔案，移除陰影 */
+      /* box-shadow: none; */
+    }
+
+    #canvas-preview {
+      border: 1px solid #999; /* 恢復到最初檔案的邊框 */
+      margin-top: 20px;
+      background: white;
+      max-width: 100%; /* 響應式調整 */
+      height: auto; /* 讓高度自動調整 */
+      display: block; /* 移除額外空間 */
+      /* 恢復到最初檔案，移除圓角和陰影 */
+      /* border-radius: 0; */
+      /* box-shadow: none; */
+      /* align-self: flex-start; (已由 body 的 align-items 控制，此處可選) */
+    }
+
+    /* 移除所有針對 #image-list 和 .thumb 的響應式設計覆蓋 */
+    @media (max-width: 2048px) {
+      /* 僅保留與 #image-list 和 .thumb 無關的響應式樣式 */
+      /* body, h2, h3, button, input[type="file"] 的響應式樣式可以保留 */
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+      h2, h3 {
+        font-size: 1.2em;
+      }
+      button, input[type="file"] {
+        width: 100%;
+        margin: 5px 0;
+      }
+      /* 移除 #image-list 和 .thumb 的響應式樣式 */
+      /* #image-list {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 20px 0;
+        padding: 10px;
+      }
+      .thumb {
+        border-radius: 8px;
+      } */
+      .delete-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 16px;
+        top: 4px;
+        right: 4px;
+      }
+      /* #canvas-preview {
+        border-radius: 8px;
+      } */
+    }
+  </style>
+</head>
+<body>
+  <h2>圖片排版工具（3 行 4 欄）</h2>
+  <h3>1. 可多次上傳圖片，預覽區保持 3 行 4 欄顯示</h3>
+  <h3>2. 拖曳排序（紅線顯示插入點 + 半透明）</h3>
+  <h3>3. 右上角「×」可刪除圖片</h3>
+  <h3>4. 點選「編輯模式」可點兩張圖片交換位置</h3>
+  <h3 id="edit-status"></h3>
+
+  <input type="file" id="file-input" multiple accept="image/*">
+  <div>
+    <button onclick="toggleEditMode()">切換編輯模式</button>
+    <button onclick="generateImage()">產生合成圖</button>
+    <button onclick="downloadImage()">下載圖片</button>
+  </div>
+
+  <div id="image-list"></div>
+  <canvas id="canvas-preview"></canvas>
+  <script>
+    const input = document.getElementById('file-input');
+    const list = document.getElementById('image-list');
+    const canvas = document.getElementById('canvas-preview');
+    const ctx = canvas.getContext('2d');
+    const editStatus = document.getElementById('edit-status');
+
+    let editMode = false;
+    let selectedThumb = null;
+
+    // 定義單個圖片格子的尺寸和間距
+    const CELL_WIDTH = 512;
+    const CELL_HEIGHT = 293;
+    const ROW_GAP = 35; // 行間距
+    const COL_COUNT = 4; // 每行圖片數量
+
+    // 初始 Canvas 頂部偏移量，用於圖片繪製的起始 Y 座標
+    const CANVAS_TOP_OFFSET = 33;
+
+    function toggleEditMode() {
+      editMode = !editMode;
+      selectedThumb = null;
+      document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
+      editStatus.textContent = editMode ? '編輯模式啟用：點選兩張圖片可交換' : '';
+    }
+
+    input.addEventListener('change', (e) => {
+      // 允許上傳任意數量的圖片，不再限制為 12
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = document.createElement('img');
+          img.onload = () => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'thumb';
+            wrapper.setAttribute('draggable', 'true');
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-btn';
+            delBtn.textContent = '×';
+            delBtn.onclick = (e) => {
+              e.stopPropagation(); // 防止點擊刪除按鈕觸發父元素的點擊事件
+              wrapper.remove();
+              // 刪除圖片後，如果處於編輯模式且被刪除的是選中的圖片，則重置選中狀態
+              if (editMode && selectedThumb === wrapper) {
+                selectedThumb = null;
+              }
+            };
+
+            wrapper.addEventListener('click', () => {
+              if (!editMode) return; // 不在編輯模式下不執行交換邏輯
+              if (wrapper === selectedThumb) {
+                // 點擊同一張圖片，取消選中
+                wrapper.classList.remove('selected');
+                selectedThumb = null;
+              } else if (selectedThumb === null) {
+                // 選中第一張圖片
+                selectedThumb = wrapper;
+                wrapper.classList.add('selected');
+              } else {
+                // 選中第二張圖片，執行交換
+                const thumb1 = selectedThumb;
+                const thumb2 = wrapper;
+
+                // 創建兩個臨時的佔位符元素
+                const temp1 = document.createElement('div');
+                const temp2 = document.createElement('div');
+
+                // 將 thumb1 替換為 temp1
+                thumb1.replaceWith(temp1);
+                // 將 thumb2 替換為 temp2
+                thumb2.replaceWith(temp2);
+
+                // 將 temp1 替換為 thumb2 (將 thumb2 放到 thumb1 的原始位置)
+                temp1.replaceWith(thumb2);
+                // 將 temp2 替換為 thumb1 (將 thumb1 放到 thumb2 的原始位置)
+                temp2.replaceWith(thumb1);
+
+                // 清除選中狀態
+                thumb1.classList.remove('selected');
+                thumb2.classList.remove('selected');
+                selectedThumb = null;
+              }
+            });
+
+            wrapper.appendChild(delBtn);
+            wrapper.appendChild(img);
+            list.appendChild(wrapper);
+            enableDragDrop(); // 每次添加圖片後重新啟用拖曳功能
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = ''; // 清空文件輸入，以便再次選擇相同文件
+    });
+
+    function enableDragDrop() {
+      let dragged = null;
+      let insertLine = document.createElement('div');
+      insertLine.className = 'insert-line';
+
+      // 移除舊的事件監聽器，避免重複綁定
+      list.querySelectorAll('.thumb').forEach(item => {
+        item.removeEventListener('dragstart', handleDragStart);
+        item.removeEventListener('dragend', handleDragEnd);
+        item.removeEventListener('dragover', handleDragOver);
+        item.removeEventListener('dragleave', handleDragLeave);
+        item.removeEventListener('drop', handleDrop);
+      });
+
+      list.querySelectorAll('.thumb').forEach(item => {
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragend', handleDragEnd);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('dragleave', handleDragLeave);
+        item.addEventListener('drop', handleDrop); // 恢復 drop 事件處理
+      });
+
+      function handleDragStart(e) {
+        dragged = this; // this 指向當前被拖曳的元素
+        this.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ''); // 設置數據以允許拖曳
+      }
+
+      function handleDragEnd() {
+        if (dragged) dragged.classList.remove('dragging');
+        if (insertLine.parentNode) insertLine.remove();
+        dragged = null;
+      }
+
+      function handleDragOver(e) {
+        e.preventDefault(); // 允許放置
+        const target = this;
+        if (target === dragged) return;
+
+        const rect = target.getBoundingClientRect();
+        const offset = e.clientX - rect.left;
+        const before = offset < rect.width / 2; // 判斷是在目標元素的前半部分還是後半部分
+
+        if (insertLine.parentNode) insertLine.remove(); // 移除舊的插入線
+        insertLine.style.left = before ? '0px' : 'unset';
+        insertLine.style.right = before ? 'unset' : '0px';
+        target.style.position = 'relative'; // 確保目標元素有定位，以便插入線定位
+        target.appendChild(insertLine); // 添加插入線
+      }
+
+      function handleDragLeave() {
+        if (insertLine.parentNode) insertLine.remove(); // 離開時移除插入線
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        const target = this;
+        if (insertLine.parentNode) insertLine.remove();
+        if (target === dragged) return;
+
+        const rect = target.getBoundingClientRect();
+        const offset = e.clientX - rect.left;
+        const before = offset < rect.width / 2;
+
+        if (before) {
+          list.insertBefore(dragged, target); // 插入到目標元素之前
+        } else {
+          list.insertBefore(dragged, target.nextSibling); // 插入到目標元素之後
+        }
+      }
+
+      enableTouchDrag(); // 啟用觸控拖曳
+    }
+
+    function enableTouchDrag() {
+      let touchStartEl = null;
+      let currentOverEl = null;
+      let insertLine = document.createElement('div');
+      insertLine.className = 'insert-line';
+      let previewImg = null; // 拖曳時的預覽圖片
+
+      // 移除舊的事件監聽器，避免重複綁定
+      list.querySelectorAll('.thumb').forEach(item => {
+        item.removeEventListener('touchstart', handleTouchStart);
+        item.removeEventListener('touchmove', handleTouchMove);
+        item.removeEventListener('touchend', handleTouchEnd);
+      });
+
+      list.querySelectorAll('.thumb').forEach(item => {
+        item.addEventListener('touchstart', handleTouchStart);
+        item.addEventListener('touchmove', handleTouchMove);
+        item.addEventListener('touchend', handleTouchEnd);
+      });
+
+      function handleTouchStart(e) {
+        touchStartEl = this;
+        this.classList.add('dragging');
+
+        // 創建拖曳時的預覽圖片
+        const img = this.querySelector('img');
+        previewImg = img.cloneNode(true);
+        previewImg.style.position = 'fixed';
+        previewImg.style.pointerEvents = 'none'; // 讓預覽圖片不阻擋下方的元素事件
+        previewImg.style.width = '128px'; // 預覽圖片大小
+        previewImg.style.height = 'auto';
+        previewImg.style.opacity = '0.6';
+        previewImg.style.zIndex = '1000';
+        previewImg.style.borderRadius = '8px'; // 預覽圖片圓角
+        document.body.appendChild(previewImg);
+
+        const touch = e.touches[0];
+        previewImg.style.left = touch.clientX - 64 + 'px'; // 居中預覽圖片
+        previewImg.style.top = touch.clientY - 64 + 'px';
+      }
+
+      function handleTouchMove(e) {
+        if (!touchStartEl || !previewImg) return;
+
+        e.preventDefault(); // 阻止頁面滾動
+
+        const touch = e.touches[0];
+        previewImg.style.left = touch.clientX - 64 + 'px';
+        previewImg.style.top = touch.clientY - 64 + 'px';
+
+        // 獲取當前觸摸點下方的元素
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const thumb = el?.closest('.thumb'); // 找到最近的 .thumb 元素
+
+        if (!thumb || thumb === touchStartEl) {
+          // 如果沒有找到 .thumb 或觸摸到自身，移除插入線
+          if (insertLine.parentNode) insertLine.remove();
+          currentOverEl = null;
+          return;
+        }
+
+        if (currentOverEl !== thumb) {
+          // 如果觸摸到新的 .thumb 元素
+          currentOverEl = thumb;
+          const rect = thumb.getBoundingClientRect();
+          const offset = touch.clientX - rect.left;
+          const before = offset < rect.width / 2;
+
+          if (insertLine.parentNode) insertLine.remove();
+          insertLine.style.left = before ? '0px' : 'unset';
+          insertLine.style.right = before ? 'unset' : '0px';
+          thumb.style.position = 'relative';
+          thumb.appendChild(insertLine);
+        }
+      }
+
+      function handleTouchEnd(e) {
+        if (previewImg) {
+          previewImg.remove(); // 移除預覽圖片
+          previewImg = null;
+        }
+
+        if (touchStartEl && currentOverEl && currentOverEl !== touchStartEl) {
+          // 執行圖片交換邏輯
+          const rect = currentOverEl.getBoundingClientRect();
+          const touch = e.changedTouches[0];
+          const offset = touch.clientX - rect.left;
+          const before = offset < rect.width / 2;
+
+          if (before) {
+            list.insertBefore(touchStartEl, currentOverEl);
+          } else {
+            list.insertBefore(touchStartEl, currentOverEl.nextSibling);
+          }
+        }
+
+        touchStartEl?.classList.remove('dragging'); // 移除拖曳樣式
+        if (insertLine.parentNode) insertLine.remove(); // 移除插入線
+        touchStartEl = null;
+        currentOverEl = null;
+      }
+    }
+
+    function generateImage() {
+      const thumbs = list.querySelectorAll('.thumb img');
+      if (thumbs.length === 0) {
+        console.log("沒有圖片可以生成合成圖。");
+        return;
+      }
+
+      // 計算總行數
+      const numRows = Math.ceil(thumbs.length / COL_COUNT);
+      // 計算 Canvas 的總高度
+      // 總高度 = 頂部偏移 + (行數 * 單元格高度) + (行間距 * (行數 - 1)) + 底部偏移
+      const totalHeight = CANVAS_TOP_OFFSET + (numRows * CELL_HEIGHT) + (Math.max(0, numRows - 1) * ROW_GAP) + CANVAS_TOP_OFFSET;
+
+      canvas.width = CELL_WIDTH * COL_COUNT; // 總寬度固定為 4 欄的寬度
+      canvas.height = totalHeight; // 動態設定 Canvas 高度
+
+      ctx.fillStyle = "#fff"; // 填充白色背景
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 等待所有圖片加載完成後再繪製
+      Promise.all(Array.from(thumbs).map(img => {
+        return new Promise(resolve => {
+          if (img.complete) {
+            resolve(); // 如果圖片已加載完成，直接解析
+          } else {
+            img.onload = resolve; // 否則等待圖片加載
+            img.onerror = () => { // 處理圖片加載失敗的情況
+              console.error(`圖片加載失敗: ${img.src}`);
+              resolve(); // 即使加載失敗也解析，避免阻塞 Promise.all
+            };
+          }
+        });
+      })).then(() => {
+        thumbs.forEach((img, index) => {
+          const row = Math.floor(index / COL_COUNT); // 計算圖片所在的行
+          const col = index % COL_COUNT; // 計算圖片所在的列
+
+          const x = col * CELL_WIDTH; // 圖片在 Canvas 上的 X 座標
+          // 圖片在 Canvas 上的 Y 座標
+          const y = CANVAS_TOP_OFFSET + row * (CELL_HEIGHT + ROW_GAP);
+
+          // 計算圖片在單元格內的縮放比例，使其適應單元格大小
+          const scale = Math.min(CELL_WIDTH / img.naturalWidth, CELL_HEIGHT / img.naturalHeight);
+          const drawWidth = img.naturalWidth * scale;
+          const drawHeight = img.naturalHeight * scale;
+
+          // 計算圖片在單元格內居中繪製的偏移量
+          const dx = x + (CELL_WIDTH - drawWidth) / 2;
+          const dy = y + (CELL_HEIGHT - drawHeight) / 2;
+
+          ctx.drawImage(img, dx, dy, drawWidth, drawHeight); // 繪製圖片
+        });
+        console.log("合成圖已生成！");
+      }).catch(error => {
+        console.error("生成合成圖時發生錯誤:", error);
+      });
+    }
+
+    function downloadImage() {
+      if (canvas.width === 0 || canvas.height === 0) {
+        console.log("Canvas 為空，請先生成合成圖。");
+        return;
+      }
+      const link = document.createElement('a');
+      link.download = 'merged-image.jpg'; // 下載文件名
+      link.href = canvas.toDataURL('image/jpeg', 0.95); // 轉換為 JPEG 格式，品質 95%
+      link.click(); // 觸發下載
+    }
+
+    // 頁面加載完成後，檢查是否有圖片並啟用拖曳功能
+    window.onload = () => {
+      enableDragDrop();
+    };
+  </script>
+</body>
+</html>
